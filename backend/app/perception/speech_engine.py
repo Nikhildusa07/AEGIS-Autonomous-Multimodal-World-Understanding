@@ -1,18 +1,31 @@
 from pathlib import Path
 from typing import Any, Dict
 
-from faster_whisper import WhisperModel
-
 
 class SpeechEngine:
     def __init__(self):
-        self.model = WhisperModel(
-            "tiny",
-            device="cpu",
-            compute_type="int8",
-        )
-
+        self.model = None
         self.last_result: Dict[str, Any] | None = None
+
+    def _load_model(self):
+        if self.model is not None:
+            return self.model
+
+        try:
+            from faster_whisper import WhisperModel
+
+            self.model = WhisperModel(
+                "tiny",
+                device="cpu",
+                compute_type="int8",
+            )
+
+            return self.model
+
+        except Exception as exc:
+            raise RuntimeError(
+                f"Speech recognition model is unavailable: {exc}"
+            ) from exc
 
     def transcribe(
         self,
@@ -27,7 +40,9 @@ class SpeechEngine:
             )
 
         try:
-            segments, info = self.model.transcribe(
+            model = self._load_model()
+
+            segments, info = model.transcribe(
                 str(path),
                 beam_size=5,
             )
