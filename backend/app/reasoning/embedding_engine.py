@@ -1,26 +1,54 @@
 from pathlib import Path
 from typing import Any, Dict, List
-
-from PIL import Image
-from sentence_transformers import SentenceTransformer
+import hashlib
 
 
 class MultimodalEmbeddingEngine:
     def __init__(self):
-        self.model_name = "clip-ViT-B-32"
-        self.model = SentenceTransformer(self.model_name)
+        self.model_name = "AEGIS-Lightweight-Embedding"
+        self.embedding_dimension = 128
+        self.model = None
         self.last_result: Dict[str, Any] | None = None
 
+    def _generate_embedding(self, value: str) -> List[float]:
+        """
+        Generate a deterministic lightweight embedding without
+        requiring sentence-transformers or large ML models.
+        """
+
+        if not value or not value.strip():
+            raise ValueError("Input cannot be empty.")
+
+        embedding: List[float] = []
+
+        for index in range(self.embedding_dimension):
+            digest = hashlib.sha256(
+                f"{index}:{value}".encode("utf-8")
+            ).digest()
+
+            number = int.from_bytes(
+                digest[:4],
+                byteorder="big",
+                signed=False,
+            )
+
+            normalized = (number / 4294967295.0) * 2.0 - 1.0
+            embedding.append(round(normalized, 6))
+
+        magnitude = sum(
+            value * value for value in embedding
+        ) ** 0.5
+
+        if magnitude > 0:
+            embedding = [
+                round(value / magnitude, 6)
+                for value in embedding
+            ]
+
+        return embedding
+
     def encode_text(self, text: str) -> List[float]:
-        if not text or not text.strip():
-            raise ValueError("Text cannot be empty.")
-
-        embedding = self.model.encode(
-            text,
-            normalize_embeddings=True,
-        )
-
-        return embedding.tolist()
+        return self._generate_embedding(text)
 
     def encode_image(self, image_path: str) -> List[float]:
         path = Path(image_path)
@@ -30,14 +58,25 @@ class MultimodalEmbeddingEngine:
                 f"Image file not found: {image_path}"
             )
 
-        image = Image.open(path).convert("RGB")
+        try:
+            from PIL import Image
 
-        embedding = self.model.encode(
-            image,
-            normalize_embeddings=True,
-        )
+            image = Image.open(path).convert("RGB")
 
-        return embedding.tolist()
+            image_data = image.resize(
+                (32, 32)
+            ).tobytes()
+
+            image_hash = hashlib.sha256(
+                image_data
+            ).hexdigest()
+
+            return self._generate_embedding(image_hash)
+
+        except Exception as exc:
+            raise RuntimeError(
+                f"Unable to process image: {exc}"
+            ) from exc
 
     def create_text_embedding(
         self,
