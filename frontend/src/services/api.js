@@ -1,4 +1,5 @@
-const API_BASE_URL = "http://127.0.0.1:8000/api";
+const API_BASE_URL =
+  "https://aegis-autonomous-multimodal-world.onrender.com/api";
 
 async function request(endpoint, options = {}) {
   const response = await fetch(`${API_BASE_URL}${endpoint}`, {
@@ -11,6 +12,7 @@ async function request(endpoint, options = {}) {
 
   if (!response.ok) {
     const errorText = await response.text();
+
     throw new Error(
       errorText || `API request failed: ${response.status}`
     );
@@ -20,7 +22,15 @@ async function request(endpoint, options = {}) {
 }
 
 export async function getHealth() {
-  return request("/../health");
+  return fetch(
+    "https://aegis-autonomous-multimodal-world.onrender.com/health"
+  ).then(async (response) => {
+    if (!response.ok) {
+      throw new Error(`Health check failed: ${response.status}`);
+    }
+
+    return response.json();
+  });
 }
 
 export async function runAutonomousCycle(payload) {
